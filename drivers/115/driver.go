@@ -178,7 +178,7 @@ func (d *Pan115) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 	}
 
 	// 闪传失败，上传
-	if stream.GetSize() <= utils.KB { // 文件大小小于1KB，改用普通模式上传
+	if stream.GetSize() <=  20 * utils.MB { // 文件大小小于20MB，改用普通模式上传
 		return d.client.UploadByOSS(&fastInfo.UploadOSSParams, stream, dirID)
 	}
 	// 分片上传

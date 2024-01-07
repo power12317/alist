@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"math"
 
 	driver115 "github.com/SheltonZhu/115driver/pkg/driver"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -243,6 +244,8 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 		quit <- struct{}{}
 	}()
 
+	options.ThreadsNum = 32
+
 	// consumers
 	for i := 0; i < options.ThreadsNum; i++ {
 		go func(threadId int) {
@@ -252,8 +255,8 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 				}
 			}()
 			for chunk := range chunksCh {
-				var part oss.UploadPart // 出现错误就继续尝试，共尝试3次
-				for retry := 0; retry < 3; retry++ {
+				var part oss.UploadPart // 出现错误就继续尝试，共尝试20次
+				for retry := 0; retry < 20; retry++ {
 					select {
 					case <-ticker.C:
 						if ossToken, err = d.client.GetOSSToken(); err != nil { // 到时重新获取ossToken
@@ -340,15 +343,15 @@ func (d *Pan115) checkUploadStatus(dirID, sha1 string) error {
 
 func SplitFile(fileSize int64) (chunks []oss.FileChunk, err error) {
 	for i := int64(1); i < 10; i++ {
-		if fileSize < i*utils.GB { // 文件大小小于iGB时分为i*1000片
-			if chunks, err = SplitFileByPartNum(fileSize, int(i*1000)); err != nil {
+		if fileSize < i*utils.GB { // 文件大小小于iGB时分为i*50片
+			if chunks, err = SplitFileByPartNum(fileSize, int(i*50)); err != nil {
 				return
 			}
 			break
 		}
 	}
-	if fileSize > 9*utils.GB { // 文件大小大于9GB时分为10000片
-		if chunks, err = SplitFileByPartNum(fileSize, 10000); err != nil {
+	if fileSize > 9*utils.GB { // 文件大小大于9GB时按20MB分片
+		if chunks, err = SplitFileByPartNum(fileSize, int(math.Ceil(float64(fileSize)/(20*1024*1024)))); err != nil {
 			return
 		}
 	}
