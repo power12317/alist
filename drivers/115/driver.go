@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	driver115 "github.com/SheltonZhu/115driver/pkg/driver"
+	driver115 "github.com/power12317/115driver/pkg/driver"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/http_range"
@@ -164,7 +164,9 @@ func (d *Pan115) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 	// rapid-upload
 	// note that 115 add timeout for rapid-upload,
 	// and "sig invalid" err is thrown even when the hash is correct after timeout.
-	if fastInfo, err = d.rapidUpload(stream.GetSize(), stream.GetName(), dirID, preHash, fullHash, stream); err != nil {
+	streamName := strings.Replace(stream.GetName(), `"`, `＂`, -1)
+
+	if fastInfo, err = d.rapidUpload(stream.GetSize(), streamName, dirID, preHash, fullHash, stream); err != nil {
 		return err
 	}
 	if matched, err := fastInfo.Ok(); err != nil {

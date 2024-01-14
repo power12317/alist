@@ -3,6 +3,9 @@ package fs
 import (
 	"context"
 	"fmt"
+	"net/http"
+	stdpath "path"
+
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -11,8 +14,6 @@ import (
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/xhofe/tache"
-	"net/http"
-	stdpath "path"
 )
 
 type CopyTask struct {
@@ -124,6 +125,17 @@ func copyFileBetween2Storages(tsk *CopyTask, srcStorage, dstStorage driver.Drive
 	if err != nil {
 		return errors.WithMessagef(err, "failed get src [%s] file", srcFilePath)
 	}
+	
+	// //add skip
+	// dstFile, err := op.GetUnwrap(tsk.Ctx(), dstStorage, dstDirPath)
+	// if err == nil {
+	// 	if dstFile.GetSize() == srcFile.GetSize()  {
+	// 		tsk.Status = "dst object is equal src object, skip"
+	// 		tsk.Cancel()
+	// 		return nil
+	// 	}
+	// }
+
 	link, _, err := op.Link(tsk.Ctx(), srcStorage, srcFilePath, model.LinkArgs{
 		Header: http.Header{},
 	})

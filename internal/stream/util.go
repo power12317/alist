@@ -10,10 +10,12 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/net"
 	"github.com/alist-org/alist/v3/pkg/http_range"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
 func GetRangeReadCloserFromLink(size int64, link *model.Link) (model.RangeReadCloserIF, error) {
+
 	if len(link.URL) == 0 {
 		return nil, fmt.Errorf("can't create RangeReadCloser since URL is empty in link")
 	}
@@ -42,6 +44,7 @@ func GetRangeReadCloserFromLink(size int64, link *model.Link) (model.RangeReadCl
 			response, err := RequestRangedHttp(ctx, link, r.Start, r.Length)
 			if err != nil {
 				if response == nil {
+					log.Debugf("%+v", errors.WithStack(err))
 					return nil, fmt.Errorf("http request failure, err:%s", err)
 				}
 				return nil, fmt.Errorf("http request failure,status: %d err:%s", response.StatusCode, err)

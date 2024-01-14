@@ -4,6 +4,7 @@ import (
 	"context"
 	stdpath "path"
 	"time"
+	"strings"
 
 	"github.com/Xhofe/go-cache"
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -394,6 +395,7 @@ func Rename(ctx context.Context, storage driver.Driver, srcPath, dstName string,
 	if storage.Config().CheckStatus && storage.GetStorage().Status != WORK {
 		return errors.Errorf("storage not init: %s", storage.GetStorage().Status)
 	}
+	log.Debugf("%s rename to %s", srcPath, dstName)
 	srcPath = utils.FixAndCleanPath(srcPath)
 	srcRawObj, err := Get(ctx, storage, srcPath)
 	if err != nil {
@@ -495,6 +497,7 @@ func Remove(ctx context.Context, storage driver.Driver, path string) error {
 }
 
 func Put(ctx context.Context, storage driver.Driver, dstDirPath string, file model.FileStreamer, up driver.UpdateProgress, lazyCache ...bool) error {
+
 	if storage.Config().CheckStatus && storage.GetStorage().Status != WORK {
 		return errors.Errorf("storage not init: %s", storage.GetStorage().Status)
 	}
@@ -505,17 +508,19 @@ func Put(ctx context.Context, storage driver.Driver, dstDirPath string, file mod
 	}()
 	// if file exist and size = 0, delete it
 	dstDirPath = utils.FixAndCleanPath(dstDirPath)
-	dstPath := stdpath.Join(dstDirPath, file.GetName())
-	tempName := file.GetName() + ".alist_to_delete"
+	dstName := strings.Replace(file.GetName(), `"`, `＂`, -1)
+	dstPath := stdpath.Join(dstDirPath, dstName)
+	tempName := dstName + ".alist_to_delete"
 	tempPath := stdpath.Join(dstDirPath, tempName)
 	fi, err := GetUnwrap(ctx, storage, dstPath)
+
 	if err == nil {
 		if fi.GetSize() == 0 {
 			err = Remove(ctx, storage, dstPath)
 			if err != nil {
 				return errors.WithMessagef(err, "while uploading, failed remove existing file which size = 0")
 			}
-		} else if storage.Config().NoOverwriteUpload {
+		}else if storage.Config().NoOverwriteUpload {
 			// try to rename old obj
 			err = Rename(ctx, storage, dstPath, tempName)
 			if err != nil {
@@ -558,11 +563,11 @@ func Put(ctx context.Context, storage driver.Driver, dstDirPath string, file mod
 	default:
 		return errs.NotImplement
 	}
-	log.Debugf("put file [%s] done", file.GetName())
+	log.Debugf("put file [%s] done", dstName)
 	if storage.Config().NoOverwriteUpload && fi != nil && fi.GetSize() > 0 {
 		if err != nil {
 			// upload failed, recover old obj
-			err := Rename(ctx, storage, tempPath, file.GetName())
+			err := Rename(ctx, storage, tempPath, dstName)
 			if err != nil {
 				log.Errorf("failed recover old obj: %+v", err)
 			}

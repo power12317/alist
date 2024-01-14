@@ -21,7 +21,7 @@ import (
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 
-	driver115 "github.com/SheltonZhu/115driver/pkg/driver"
+	driver115 "github.com/power12317/115driver/pkg/driver"
 	crypto "github.com/gaoyb7/115drive-webdav/115"
 	"github.com/orzogc/fake115uploader/cipher"
 	"github.com/pkg/errors"
@@ -75,7 +75,7 @@ func (d *Pan115) getFiles(fileId string) ([]FileObj, error) {
 }
 
 const (
-	appVer = "2.0.3.6"
+	appVer = "2.0.6.6"
 )
 
 func (c *Pan115) DownloadWithUA(pickCode, ua string) (*driver115.DownloadInfo, error) {
@@ -246,6 +246,7 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 		err       error
 	)
 
+	streamName := strings.Replace(stream.GetName(), `"`, `＂`, -1)
 	tmpF, err := stream.CacheFullInTempFile()
 	if err != nil {
 		return err
@@ -313,8 +314,8 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 				}
 			}()
 			for chunk := range chunksCh {
-				var part oss.UploadPart // 出现错误就继续尝试，共尝试20次
-				for retry := 0; retry < 20; retry++ {
+				var part oss.UploadPart // 出现错误就继续尝试，共尝试3次
+				for retry := 0; retry < 3; retry++ {
 					select {
 					case <-ticker.C:
 						if ossToken, err = d.client.GetOSSToken(); err != nil { // 到时重新获取ossToken
@@ -334,7 +335,8 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 					}
 				}
 				if err != nil {
-					errCh <- errors.Wrap(err, fmt.Sprintf("上传 %s 的第%d个分片时出现错误：%v", stream.GetName(), chunk.Number, err))
+
+					errCh <- errors.Wrap(err, fmt.Sprintf("上传 %s 的第%d个分片时出现错误：%v", streamName, chunk.Number, err))
 				}
 				UploadedPartsCh <- part
 			}
@@ -367,7 +369,7 @@ LOOP:
 	// EOF错误是xml的Unmarshal导致的，响应其实是json格式，所以实际上上传是成功的
 	if _, err = bucket.CompleteMultipartUpload(imur, parts, driver115.OssOption(params, ossToken)...); err != nil && !errors.Is(err, io.EOF) {
 		// 当文件名含有 &< 这两个字符之一时响应的xml解析会出现错误，实际上上传是成功的
-		if filename := filepath.Base(stream.GetName()); !strings.ContainsAny(filename, "&<") {
+		if filename := filepath.Base(streamName); !strings.ContainsAny(filename, "&<") {
 			return err
 		}
 	}

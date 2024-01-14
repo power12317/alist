@@ -170,10 +170,13 @@ func (d *GoogleDrive) request(url string, method string, callback base.ReqCallba
 	}
 	if e.Error.Code != 0 {
 		if e.Error.Code == 401 {
+			log.Error("expired:Authorizatio=Bearer " + d.AccessToken)
+			log.Error("401 refresh token")
 			err = d.refreshToken()
 			if err != nil {
 				return nil, err
 			}
+			log.Error("new:Authorizatio=Bearer " + d.AccessToken)
 			return d.request(url, method, callback, resp)
 		}
 		return nil, fmt.Errorf("%s: %v", e.Error.Message, e.Error.Errors)
