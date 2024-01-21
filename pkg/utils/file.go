@@ -123,16 +123,38 @@ func CreateTempFile(r io.Reader, size int64) (*os.File, error) {
 	}
 	readBytes, err := io.Copy(f, r)
 	if err != nil {
-		_ = os.Remove(f.Name())
+		if err3 := f.Close(); err3 != nil {
+			log.Errorf("Close TempFile %s failed",f.Name(),err3)
+		}
+		err2 := os.Remove(f.Name())
+		if err2 != nil {
+			log.Errorf("Remove TempFile %s failed when io read error, %s", f.Name(), err2)
+		}
+		
+		log.Errorf("CreateTempFile failed, %s", err)
 		return nil, errs.NewErr(err, "CreateTempFile failed")
 	}
 	if size > 0 && readBytes != size {
-		_ = os.Remove(f.Name())
+		if err3 := f.Close(); err3 != nil {
+			log.Errorf("Close TempFile %s failed",f.Name(),err3)
+		}
+		err2 := os.Remove(f.Name())
+		if err2 != nil {
+			log.Errorf("Remove TempFile %s failed when file size error, %s", f.Name(), err2)
+		}
+		log.Errorf("CreateTempFile failed, incoming stream actual size= %d, expect = %d, %s", readBytes, size, err)
 		return nil, errs.NewErr(err, "CreateTempFile failed, incoming stream actual size= %d, expect = %d ", readBytes, size)
 	}
 	_, err = f.Seek(0, io.SeekStart)
 	if err != nil {
-		_ = os.Remove(f.Name())
+		if err3 := f.Close(); err3 != nil {
+			log.Errorf("Close TempFile %s failed",f.Name(),err3)
+		}
+		err2 := os.Remove(f.Name())
+		if err2 != nil {
+			log.Errorf("Remove TempFile %s failed when seek error, %s", f.Name(), err2)
+		}
+		log.Errorf("CreateTempFile failed, can't seek to 0, %s", err)
 		return nil, errs.NewErr(err, "CreateTempFile failed, can't seek to 0 ")
 	}
 	return f, nil
