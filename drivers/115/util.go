@@ -303,7 +303,7 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 		quit <- struct{}{}
 	}()
 
-	options.ThreadsNum = 32
+	options.ThreadsNum = 128
 
 	// consumers
 	for i := 0; i < options.ThreadsNum; i++ {
