@@ -20,7 +20,7 @@ require (
 	github.com/djherbis/times v1.6.0
 	github.com/dlclark/regexp2 v1.10.0
 	github.com/dustinxie/ecc v0.0.0-20210511000915-959544187564
-	github.com/foxxorcat/mopan-sdk-go v0.1.4
+	github.com/foxxorcat/mopan-sdk-go v0.1.5
 	github.com/foxxorcat/weiyun-sdk-go v0.1.3
 	github.com/gaoyb7/115drive-webdav v0.1.8
 	github.com/gin-contrib/cors v1.5.0
@@ -35,6 +35,7 @@ require (
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/json-iterator/go v1.1.12
 	github.com/maruel/natural v1.1.1
+	github.com/minio/sio v0.3.0
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/orzogc/fake115uploader v0.3.3-0.20230715111618-58f9eb76f831
 	github.com/pkg/errors v0.9.1
