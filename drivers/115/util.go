@@ -300,6 +300,7 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 	go chunksProducer(chunksCh, chunks)
 	go func() {
 		wg.Wait()
+		close(UploadedPartsCh)
 		quit <- struct{}{}
 	}()
 
@@ -379,6 +380,7 @@ func chunksProducer(ch chan oss.FileChunk, chunks []oss.FileChunk) {
 	for _, chunk := range chunks {
 		ch <- chunk
 	}
+	close(ch)
 }
 func (d *Pan115) checkUploadStatus(dirID, sha1 string) error {
 	// 验证上传是否成功

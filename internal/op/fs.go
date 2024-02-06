@@ -222,7 +222,7 @@ func Get(ctx context.Context, storage driver.Driver, path string) (model.Obj, er
 		return nil, errors.WithMessage(err, "failed get parent list")
 	}
 	for _, f := range files {
-		if f.GetName() == name {
+		if f.GetName() == name || replaceSpecialCharacters(f.GetName()) == name {
 			return f, nil
 		}
 	}
@@ -496,6 +496,30 @@ func Remove(ctx context.Context, storage driver.Driver, path string) error {
 	return errors.WithStack(err)
 }
 
+func replaceSpecialCharacters(input string) string {
+	// 定义特殊字符到全角字符的映射
+	replacementMap := map[rune]string{
+		'<': "＜",
+		'>': "＞",
+		':': "：",
+		'"': "＂",
+		'/': "／",
+		'\\': "＼",
+		'|': "｜",
+		'?': "？",
+		'*': "＊",
+		// 添加其他特殊字符的映射
+	}
+
+	// 使用 strings.Map 函数进行字符替换
+	return strings.Map(func(r rune) rune {
+		if replacement, ok := replacementMap[r]; ok {
+			return []rune(replacement)[0]
+		}
+		return r
+	}, input)
+}
+
 func Put(ctx context.Context, storage driver.Driver, dstDirPath string, file model.FileStreamer, up driver.UpdateProgress, lazyCache ...bool) error {
 
 	if storage.Config().CheckStatus && storage.GetStorage().Status != WORK {
@@ -508,7 +532,7 @@ func Put(ctx context.Context, storage driver.Driver, dstDirPath string, file mod
 	}()
 	// if file exist and size = 0, delete it
 	dstDirPath = utils.FixAndCleanPath(dstDirPath)
-	dstName := strings.Replace(file.GetName(), `"`, `＂`, -1)
+	dstName := replaceSpecialCharacters(file.GetName())
 	dstPath := stdpath.Join(dstDirPath, dstName)
 	tempName := dstName + ".alist_to_delete"
 	tempPath := stdpath.Join(dstDirPath, tempName)
