@@ -126,12 +126,6 @@ func copyFileBetween2Storages(tsk *CopyTask, srcStorage, dstStorage driver.Drive
 		return errors.WithMessagef(err, "failed get src [%s] file", srcFilePath)
 	}
 	
-	//云盘只有40G空间 20G以上的文件交给大盘鸡来搞
-	if(srcFile.GetSize() > 20 * utils.GB){
-		tsk.Status = "file is too large for cloud, skip"
-		return nil
-	}
-
 	// //add skip
 	// dstFile, err := op.GetUnwrap(tsk.Ctx(), dstStorage, dstDirPath)
 	// if err == nil {

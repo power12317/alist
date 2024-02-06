@@ -304,7 +304,7 @@ func (d *Pan115) UploadByMultipart(params *driver115.UploadOSSParams, fileSize i
 		quit <- struct{}{}
 	}()
 
-	options.ThreadsNum = 128
+	options.ThreadsNum = 32
 
 	// consumers
 	for i := 0; i < options.ThreadsNum; i++ {
@@ -406,14 +406,14 @@ func (d *Pan115) checkUploadStatus(dirID, sha1 string) error {
 func SplitFile(fileSize int64) (chunks []oss.FileChunk, err error) {
 	for i := int64(1); i < 10; i++ {
 		if fileSize < i*utils.GB { // 文件大小小于iGB时分为i*50片
-			if chunks, err = SplitFileByPartNum(fileSize, int(i*125)); err != nil {
+			if chunks, err = SplitFileByPartNum(fileSize, int(i*50)); err != nil {
 				return
 			}
 			break
 		}
 	}
 	if fileSize > 9*utils.GB { // 文件大小大于9GB时按20MB分片
-		if chunks, err = SplitFileByPartNum(fileSize, int(math.Ceil(float64(fileSize)/(8*1024*1024)))); err != nil {
+		if chunks, err = SplitFileByPartNum(fileSize, int(math.Ceil(float64(fileSize)/(20*1024*1024)))); err != nil {
 			return
 		}
 	}
