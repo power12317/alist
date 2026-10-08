@@ -19,7 +19,7 @@ permissions:
 jobs:
   merge_frontend_pr:
     name: Merge companion frontend PR
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    if: (github.repository == 'AlistGo/alist' || github.repository == 'alist-org/alist') && (github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     steps:
       - name: Find frontend PR

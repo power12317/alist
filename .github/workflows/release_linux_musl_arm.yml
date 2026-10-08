@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   release_linux_musl_arm:
+    if: github.repository == 'AlistGo/alist' || github.repository == 'alist-org/alist'
     strategy:
       matrix:
         platform: [ ubuntu-latest ]

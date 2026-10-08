@@ -1,99 +1,175 @@
 name: release
 
 on:
-  release:
-    types: [ published ]
+  push:
+    tags:
+      - 'v*-mod'
+      - 'v*-mod.*'
 
-# Re-publishing the same tag recreates the release (new id), which would leave
-# any in-flight run pointing at a deleted release id and fail with 404. Cancel
-# the stale run so only the newest publish for a given tag proceeds.
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.release.tag_name }}
-  cancel-in-progress: true
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    strategy:
-      matrix:
-        platform: [ ubuntu-latest ]
-        go-version: [ '1.21' ]
-    name: Release
-    runs-on: ${{ matrix.platform }}
+  prepare:
+    name: Validate source and prepare frontend
+    runs-on: ubuntu-24.04
+    outputs:
+      web_version: ${{ steps.web.outputs.web_version }}
     steps:
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # main
+      - uses: actions/checkout@v4
         with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but frees about 6 GB
-          tool-cache: false
-          
-          # all of these default to true, but feel free to set to
-          # "false" if necessary for your workflow
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Prerelease
-        uses: irongut/EditRelease@v1.2.0
-        with:
-          token: ${{ secrets.MY_TOKEN }}
-          id: ${{ github.event.release.id }}
-          prerelease: true
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install dependencies
-        run: |
-          sudo snap install zig --classic --beta
-          docker pull crazymax/xgo:latest
-          go install github.com/crazy-max/xgo@latest
-          sudo apt install upx
-
-      - name: Build
-        run: |
-          bash build.sh release
-
-      - name: Upload assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/compress/*
-          prerelease: false
-
-  release_desktop:
-    needs: release
-    name: Release desktop
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          repository: AlistGo/desktop-release
-          ref: main
           persist-credentials: false
-          fetch-depth: 0
 
-      - name: Add tag
-        run: |
-          git config --local user.email "bot@nn.ci"
-          git config --local user.name "IlaBot"
-          version=$(wget -qO- -t1 -T2 "https://api.github.com/repos/alist-org/alist/releases/latest" | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g')
-          git tag -a $version -m "release $version"
-
-      - name: Push tags
-        uses: ad-m/github-push-action@881a6320fdb16eb5318c5054f31c218aec2b324c # master
+      - uses: actions/setup-go@v5
         with:
-          github_token: ${{ secrets.MY_TOKEN }}
-          branch: main
-          repository: AlistGo/desktop-release
+          go-version-file: go.mod
+
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-mod(\.[0-9]+)?$ ]]
+
+      - name: Test Google Drive share driver
+        run: go test ./drivers/google_drive_share
+
+      - name: Prepare released frontend
+        id: web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/prepare-release-web.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-web-dist
+          path: public/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - darwin-amd64
+          - darwin-arm64
+          - windows-amd64
+          - windows-arm64
+          - linux-amd64-musl
+          - linux-arm64-musl
+          - linux-armv7l-musleabihf
+          - android-amd64
+          - android-arm64
+          - freebsd-amd64
+          - freebsd-arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Free disk space for cross compilers
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          tool-cache: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-web-dist
+          path: public/dist
+
+      - name: Build with CGO
+        if: ${{ !startsWith(matrix.target, 'freebsd-') }}
+        uses: go-cross/cgo-actions@d0b8f2f2d67923ce9a42d92a7ef0ed1ebd905f0a # v1
+        with:
+          targets: ${{ matrix.target }}
+          musl-base-url: https://musl.cc
+          out-dir: build
+          output: alist-$target$ext
+          x-flags: |
+            github.com/alist-org/alist/v3/internal/conf.BuiltAt=$built_at
+            github.com/alist-org/alist/v3/internal/conf.GitAuthor=$git_author
+            github.com/alist-org/alist/v3/internal/conf.GitCommit=${{ github.sha }}
+            github.com/alist-org/alist/v3/internal/conf.Version=${{ github.ref_name }}
+            github.com/alist-org/alist/v3/internal/conf.WebVersion=${{ needs.prepare.outputs.web_version }}
+
+      - name: Build FreeBSD with archived sysroot
+        if: startsWith(matrix.target, 'freebsd-')
+        env:
+          TARGET: ${{ matrix.target }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          WEB_VERSION: ${{ needs.prepare.outputs.web_version }}
+        run: bash .github/scripts/build-freebsd-release.sh
+
+      - name: Package executable and license
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash .github/scripts/package-release.sh "$TARGET"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package-${{ matrix.target }}
+          path: build/packages/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish complete release
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-package-*
+          path: release
+          merge-multiple: true
+
+      - name: Verify packages and generate checksums
+        working-directory: release
+        run: |
+          set -euo pipefail
+          packages=(alist-*.tar.gz alist-*.zip)
+          test "${#packages[@]}" -eq 11
+          sha256sum "${packages[@]}" > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+
+      - name: Upload and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WEB_VERSION: ${{ needs.prepare.outputs.web_version }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          Modified AList build with anonymous Google Drive public-share downloads.
+
+          - Source commit: $SOURCE_COMMIT
+          - Frontend version: $WEB_VERSION
+          - Platforms: Windows, macOS, Linux (musl), Android and FreeBSD.
+
+          Extract the archive for your platform and run alist (alist.exe on Windows).
+          Checksums for all packages are provided in SHA256SUMS.txt.
+          Linux ARMv7 uses the linux-armv7l-musleabihf package.
+          EOF
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "AList $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release upload "$RELEASE_TAG" release/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest

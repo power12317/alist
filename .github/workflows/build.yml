@@ -2,9 +2,13 @@ name: build
 
 on:
   push:
-    branches: [ 'main' ]
+    branches: [ 'main', 'fix_local_perm' ]
   pull_request:
     branches: [ 'main' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -13,6 +17,7 @@ concurrency:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         platform: [ubuntu-latest]
         target: 
@@ -23,7 +28,7 @@ jobs:
           - linux-amd64-musl
           - windows-arm64
           - android-arm64
-    name: Build
+    name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.platform }}
     env:
       GOPROXY: https://proxy.golang.org,direct
@@ -38,15 +43,16 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: go.mod
 
       - name: Setup web
         run: bash build.sh dev web
 
       - name: Build
-        uses: go-cross/cgo-actions@v1
+        uses: go-cross/cgo-actions@d0b8f2f2d67923ce9a42d92a7ef0ed1ebd905f0a # v1
         with:
           targets: ${{ matrix.target }}
+          musl-base-url: https://musl.cc
           musl-target-format: $os-$musl-$arch
           out-dir: build
           x-flags: |
@@ -61,3 +67,4 @@ jobs:
         with:
           name: alist_${{ env.SHA }}_${{ matrix.target }}
           path: build/*
+          if-no-files-found: error
