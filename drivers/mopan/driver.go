@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/model"
@@ -267,9 +269,6 @@ func (d *MoPan) Put(ctx context.Context, dstDir model.Obj, stream model.FileStre
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = file.Close()
-	}()
 
 	// step.1
 	uploadPartData, err := mopan.InitUploadPartData(ctx, mopan.UpdloadFileParam{
@@ -295,12 +294,13 @@ func (d *MoPan) Put(ctx context.Context, dstDir model.Obj, stream model.FileStre
 	}
 
 	if !initUpdload.FileDataExists {
-		utils.Log.Error(d.client.CloudDiskStartBusiness())
+		// utils.Log.Error(d.client.CloudDiskStartBusiness())
 
 		threadG, upCtx := errgroup.NewGroupWithContext(ctx, d.uploadThread,
 			retry.Attempts(3),
 			retry.Delay(time.Second),
 			retry.DelayType(retry.BackOffDelay))
+		sem := semaphore.NewWeighted(3)
 
 		// step.3
 		parts, err := d.client.GetAllMultiUploadUrls(initUpdload.UploadFileID, initUpdload.PartInfos)
@@ -319,15 +319,21 @@ func (d *MoPan) Put(ctx context.Context, dstDir model.Obj, stream model.FileStre
 
 			// step.4
 			threadG.Go(func(ctx context.Context) error {
-				req, err := part.NewRequest(ctx, io.NewSectionReader(file, int64(part.PartNumber-1)*initUpdload.PartSize, byteSize))
+				if err = sem.Acquire(ctx, 1); err != nil {
+					return err
+				}
+				defer sem.Release(1)
+				reader := io.NewSectionReader(file, int64(part.PartNumber-1)*initUpdload.PartSize, byteSize)
+				req, err := part.NewRequest(ctx, driver.NewLimitedUploadStream(ctx, reader))
 				if err != nil {
 					return err
 				}
+				req.ContentLength = byteSize
 				resp, err := base.HttpClient.Do(req)
 				if err != nil {
 					return err
 				}
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				if resp.StatusCode != http.StatusOK {
 					return fmt.Errorf("upload err,code=%d", resp.StatusCode)
 				}

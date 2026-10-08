@@ -1,13 +1,16 @@
 appName="alist"
 builtAt="$(date +'%F %T %z')"
-goVersion=$(go version | sed 's/go version //')
 gitAuthor="Xhofe <i@nn.ci>"
 gitCommit=$(git log --pretty=format:"%h" -1)
 
 if [ "$1" = "dev" ]; then
   version="dev"
   webVersion="dev"
+elif [ "$1" = "beta" ]; then
+  version="beta"
+  webVersion="dev"
 else
+  git tag -d beta
   version=$(git describe --abbrev=0 --tags)
   webVersion=$(wget -qO- -t1 -T2 "https://api.github.com/repos/alist-org/alist-web/releases/latest" | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g')
 fi
@@ -18,7 +21,6 @@ echo "frontend version: $webVersion"
 ldflags="\
 -w -s \
 -X 'github.com/alist-org/alist/v3/internal/conf.BuiltAt=$builtAt' \
--X 'github.com/alist-org/alist/v3/internal/conf.GoVersion=$goVersion' \
 -X 'github.com/alist-org/alist/v3/internal/conf.GitAuthor=$gitAuthor' \
 -X 'github.com/alist-org/alist/v3/internal/conf.GitCommit=$gitCommit' \
 -X 'github.com/alist-org/alist/v3/internal/conf.Version=$version' \
@@ -57,7 +59,7 @@ BuildDev() {
   rm -rf .git/
   mkdir -p "dist"
   muslflags="--extldflags '-static -fpic' $ldflags"
-  BASE="https://musl.nn.ci/"
+  BASE="https://musl.cc/"
   FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross)
   for i in "${FILES[@]}"; do
     url="${BASE}${i}.tgz"
@@ -85,34 +87,34 @@ BuildDev() {
   cat md5.txt
 }
 
-PrepareBuildDocker() {
-  echo "replace github.com/mattn/go-sqlite3 => github.com/leso-kn/go-sqlite3 v0.0.0-20230710125852-03158dc838ed" >>go.mod
-  go get gorm.io/driver/sqlite@v1.4.4
-  go mod download
-}
-
 BuildDocker() {
-  PrepareBuildDocker
   go build -o ./bin/alist -ldflags="$ldflags" -tags=jsoniter .
 }
 
-BuildDockerMultiplatform() {
-  PrepareBuildDocker
-
-  BASE="https://musl.cc/"
-  FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross i486-linux-musl-cross s390x-linux-musl-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross)
+PrepareBuildDockerMusl() {
+  mkdir -p build/musl-libs
+  BASE="https://github.com/go-cross/musl-toolchain-archive/releases/latest/download/"
+  FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross i486-linux-musl-cross s390x-linux-musl-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross riscv64-linux-musl-cross powerpc64le-linux-musl-cross)
   for i in "${FILES[@]}"; do
     url="${BASE}${i}.tgz"
-    curl -L -o "${i}.tgz" "${url}"
-    sudo tar xf "${i}.tgz" --strip-components 1 -C /usr/local
-    rm -f "${i}.tgz"
+    lib_tgz="build/${i}.tgz"
+    curl -L -o "${lib_tgz}" "${url}"
+    tar xf "${lib_tgz}" --strip-components 1 -C build/musl-libs
+    rm -f "${lib_tgz}"
   done
+}
+
+BuildDockerMultiplatform() {
+  go mod download
+
+  # run PrepareBuildDockerMusl before build
+  export PATH=$PATH:$PWD/build/musl-libs/bin
 
   docker_lflags="--extldflags '-static -fpic' $ldflags"
   export CGO_ENABLED=1
 
-  OS_ARCHES=(linux-amd64 linux-arm64 linux-386 linux-s390x)
-  CGO_ARGS=(x86_64-linux-musl-gcc aarch64-linux-musl-gcc i486-linux-musl-gcc s390x-linux-musl-gcc)
+  OS_ARCHES=(linux-amd64 linux-arm64 linux-386 linux-s390x linux-riscv64 linux-ppc64le)
+  CGO_ARGS=(x86_64-linux-musl-gcc aarch64-linux-musl-gcc i486-linux-musl-gcc s390x-linux-musl-gcc riscv64-linux-musl-gcc powerpc64le-linux-musl-gcc)
   for i in "${!OS_ARCHES[@]}"; do
     os_arch=${OS_ARCHES[$i]}
     cgo_cc=${CGO_ARGS[$i]}
@@ -122,7 +124,7 @@ BuildDockerMultiplatform() {
     export GOARCH=$arch
     export CC=${cgo_cc}
     echo "building for $os_arch"
-    go build -o ./$os/$arch/alist -ldflags="$docker_lflags" -tags=jsoniter .
+    go build -o build/$os/$arch/alist -ldflags="$docker_lflags" -tags=jsoniter .
   done
 
   DOCKER_ARM_ARCHES=(linux-arm/v6 linux-arm/v7)
@@ -136,7 +138,7 @@ BuildDockerMultiplatform() {
     export GOARM=${GO_ARM[$i]}
     export CC=${cgo_cc}
     echo "building for $docker_arch"
-    go build -o ./${docker_arch%%-*}/${docker_arch##*-}/alist -ldflags="$docker_lflags" -tags=jsoniter .
+    go build -o build/${docker_arch%%-*}/${docker_arch##*-}/alist -ldflags="$docker_lflags" -tags=jsoniter .
   done
 }
 
@@ -156,7 +158,7 @@ BuildReleaseLinuxMusl() {
   rm -rf .git/
   mkdir -p "build"
   muslflags="--extldflags '-static -fpic' $ldflags"
-  BASE="https://musl.nn.ci/"
+  BASE="https://musl.cc/"
   FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross mips-linux-musl-cross mips64-linux-musl-cross mips64el-linux-musl-cross mipsel-linux-musl-cross powerpc64le-linux-musl-cross s390x-linux-musl-cross)
   for i in "${FILES[@]}"; do
     url="${BASE}${i}.tgz"
@@ -182,7 +184,7 @@ BuildReleaseLinuxMuslArm() {
   rm -rf .git/
   mkdir -p "build"
   muslflags="--extldflags '-static -fpic' $ldflags"
-  BASE="https://musl.nn.ci/"
+  BASE="https://musl.cc/"
 #  FILES=(arm-linux-musleabi-cross arm-linux-musleabihf-cross armeb-linux-musleabi-cross armeb-linux-musleabihf-cross armel-linux-musleabi-cross armel-linux-musleabihf-cross armv5l-linux-musleabi-cross armv5l-linux-musleabihf-cross armv6-linux-musleabi-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross armv7m-linux-musleabi-cross armv7r-linux-musleabihf-cross)
   FILES=(arm-linux-musleabi-cross arm-linux-musleabihf-cross armel-linux-musleabi-cross armel-linux-musleabihf-cross armv5l-linux-musleabi-cross armv5l-linux-musleabihf-cross armv6-linux-musleabi-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross armv7m-linux-musleabi-cross armv7r-linux-musleabihf-cross)
   for i in "${FILES[@]}"; do
@@ -232,6 +234,29 @@ BuildReleaseAndroid() {
   done
 }
 
+BuildReleaseFreeBSD() {
+  rm -rf .git/
+  mkdir -p "build/freebsd"
+  OS_ARCHES=(amd64 arm64 i386)
+  GO_ARCHES=(amd64 arm64 386)
+  CGO_ARGS=(x86_64-unknown-freebsd14.1 aarch64-unknown-freebsd14.1 i386-unknown-freebsd14.1)
+  for i in "${!OS_ARCHES[@]}"; do
+    os_arch=${OS_ARCHES[$i]}
+    cgo_cc="clang --target=${CGO_ARGS[$i]} --sysroot=/opt/freebsd/${os_arch}"
+    echo building for freebsd-${os_arch}
+    sudo mkdir -p "/opt/freebsd/${os_arch}"
+    wget -q https://download.freebsd.org/releases/${os_arch}/14.3-RELEASE/base.txz
+    sudo tar -xf ./base.txz -C /opt/freebsd/${os_arch}
+    rm base.txz
+    export GOOS=freebsd
+    export GOARCH=${GO_ARCHES[$i]}
+    export CC=${cgo_cc}
+    export CGO_ENABLED=1
+    export CGO_LDFLAGS="-fuse-ld=lld"
+    go build -o ./build/$appName-freebsd-$os_arch -ldflags="$ldflags" -tags=jsoniter .
+  done
+}
+
 MakeRelease() {
   cd build
   mkdir compress
@@ -246,6 +271,11 @@ MakeRelease() {
     rm -f alist
   done
   for i in $(find . -type f -name "$appName-darwin-*"); do
+    cp "$i" alist
+    tar -czvf compress/"$i".tar.gz alist
+    rm -f alist
+  done
+  for i in $(find . -type f -name "$appName-freebsd-*"); do
     cp "$i" alist
     tar -czvf compress/"$i".tar.gz alist
     rm -f alist
@@ -267,11 +297,17 @@ if [ "$1" = "dev" ]; then
     BuildDocker
   elif [ "$2" = "docker-multiplatform" ]; then
       BuildDockerMultiplatform
+  elif [ "$2" = "web" ]; then
+    echo "web only"
   else
     BuildDev
   fi
-elif [ "$1" = "release" ]; then
-  FetchWebRelease
+elif [ "$1" = "release" -o "$1" = "beta" ]; then
+  if [ "$1" = "beta" ]; then
+    FetchWebDev
+  else
+    FetchWebRelease
+  fi
   if [ "$2" = "docker" ]; then
     BuildDocker
   elif [ "$2" = "docker-multiplatform" ]; then
@@ -285,10 +321,21 @@ elif [ "$1" = "release" ]; then
   elif [ "$2" = "android" ]; then
     BuildReleaseAndroid
     MakeRelease "md5-android.txt"
+  elif [ "$2" = "freebsd" ]; then
+    BuildReleaseFreeBSD
+    MakeRelease "md5-freebsd.txt"
+  elif [ "$2" = "web" ]; then
+    echo "web only"
   else
     BuildRelease
     MakeRelease "md5.txt"
   fi
+elif [ "$1" = "prepare" ]; then
+  if [ "$2" = "docker-multiplatform" ]; then
+    PrepareBuildDockerMusl
+  fi
+elif [ "$1" = "zip" ]; then
+  MakeRelease "$2".txt
 else
   echo -e "Parameter error"
 fi

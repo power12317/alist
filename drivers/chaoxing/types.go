@@ -139,7 +139,7 @@ type File struct {
 		Topsort          int     `json:"topsort"`
 		Restype          string  `json:"restype"`
 		Size             int_str `json:"size"`
-		UploadDate       string  `json:"uploadDate"`
+		UploadDate       int64   `json:"uploadDate"`
 		FileSize         string  `json:"fileSize"`
 		Name             string  `json:"name"`
 		FileID           string  `json:"fileId"`
@@ -191,33 +191,33 @@ type UploadFileDataRsp struct {
 	Resid    int64  `json:"resid"`
 	Puid     int    `json:"puid"`
 	Data     struct {
-		DisableOpt       bool      `json:"disableOpt"`
-		Resid            int64     `json:"resid"`
-		Crc              string    `json:"crc"`
-		Puid             int       `json:"puid"`
-		Isfile           bool      `json:"isfile"`
-		Pantype          string    `json:"pantype"`
-		Size             int       `json:"size"`
-		Name             string    `json:"name"`
-		ObjectID         string    `json:"objectId"`
-		Restype          string    `json:"restype"`
-		UploadDate       time.Time `json:"uploadDate"`
-		ModifyDate       time.Time `json:"modifyDate"`
-		UploadDateFormat string    `json:"uploadDateFormat"`
-		Residstr         string    `json:"residstr"`
-		Suffix           string    `json:"suffix"`
-		Preview          string    `json:"preview"`
-		Thumbnail        string    `json:"thumbnail"`
-		Creator          int       `json:"creator"`
-		Duration         int       `json:"duration"`
-		IsImg            bool      `json:"isImg"`
-		PreviewURL       string    `json:"previewUrl"`
-		Filetype         string    `json:"filetype"`
-		Filepath         string    `json:"filepath"`
-		Sort             int       `json:"sort"`
-		Topsort          int       `json:"topsort"`
-		ResTypeValue     int       `json:"resTypeValue"`
-		Extinfo          string    `json:"extinfo"`
+		DisableOpt       bool   `json:"disableOpt"`
+		Resid            int64  `json:"resid"`
+		Crc              string `json:"crc"`
+		Puid             int    `json:"puid"`
+		Isfile           bool   `json:"isfile"`
+		Pantype          string `json:"pantype"`
+		Size             int    `json:"size"`
+		Name             string `json:"name"`
+		ObjectID         string `json:"objectId"`
+		Restype          string `json:"restype"`
+		UploadDate       int64  `json:"uploadDate"`
+		ModifyDate       int64  `json:"modifyDate"`
+		UploadDateFormat string `json:"uploadDateFormat"`
+		Residstr         string `json:"residstr"`
+		Suffix           string `json:"suffix"`
+		Preview          string `json:"preview"`
+		Thumbnail        string `json:"thumbnail"`
+		Creator          int    `json:"creator"`
+		Duration         int    `json:"duration"`
+		IsImg            bool   `json:"isImg"`
+		PreviewURL       string `json:"previewUrl"`
+		Filetype         string `json:"filetype"`
+		Filepath         string `json:"filepath"`
+		Sort             int    `json:"sort"`
+		Topsort          int    `json:"topsort"`
+		ResTypeValue     int    `json:"resTypeValue"`
+		Extinfo          string `json:"extinfo"`
 	} `json:"data"`
 }
 
@@ -225,33 +225,33 @@ type UploadDoneParam struct {
 	Cataid string `json:"cataid"`
 	Key    string `json:"key"`
 	Param  struct {
-		DisableOpt       bool      `json:"disableOpt"`
-		Resid            int64     `json:"resid"`
-		Crc              string    `json:"crc"`
-		Puid             int       `json:"puid"`
-		Isfile           bool      `json:"isfile"`
-		Pantype          string    `json:"pantype"`
-		Size             int       `json:"size"`
-		Name             string    `json:"name"`
-		ObjectID         string    `json:"objectId"`
-		Restype          string    `json:"restype"`
-		UploadDate       time.Time `json:"uploadDate"`
-		ModifyDate       time.Time `json:"modifyDate"`
-		UploadDateFormat string    `json:"uploadDateFormat"`
-		Residstr         string    `json:"residstr"`
-		Suffix           string    `json:"suffix"`
-		Preview          string    `json:"preview"`
-		Thumbnail        string    `json:"thumbnail"`
-		Creator          int       `json:"creator"`
-		Duration         int       `json:"duration"`
-		IsImg            bool      `json:"isImg"`
-		PreviewURL       string    `json:"previewUrl"`
-		Filetype         string    `json:"filetype"`
-		Filepath         string    `json:"filepath"`
-		Sort             int       `json:"sort"`
-		Topsort          int       `json:"topsort"`
-		ResTypeValue     int       `json:"resTypeValue"`
-		Extinfo          string    `json:"extinfo"`
+		DisableOpt       bool   `json:"disableOpt"`
+		Resid            int64  `json:"resid"`
+		Crc              string `json:"crc"`
+		Puid             int    `json:"puid"`
+		Isfile           bool   `json:"isfile"`
+		Pantype          string `json:"pantype"`
+		Size             int    `json:"size"`
+		Name             string `json:"name"`
+		ObjectID         string `json:"objectId"`
+		Restype          string `json:"restype"`
+		UploadDate       int64  `json:"uploadDate"`
+		ModifyDate       int64  `json:"modifyDate"`
+		UploadDateFormat string `json:"uploadDateFormat"`
+		Residstr         string `json:"residstr"`
+		Suffix           string `json:"suffix"`
+		Preview          string `json:"preview"`
+		Thumbnail        string `json:"thumbnail"`
+		Creator          int    `json:"creator"`
+		Duration         int    `json:"duration"`
+		IsImg            bool   `json:"isImg"`
+		PreviewURL       string `json:"previewUrl"`
+		Filetype         string `json:"filetype"`
+		Filepath         string `json:"filepath"`
+		Sort             int    `json:"sort"`
+		Topsort          int    `json:"topsort"`
+		ResTypeValue     int    `json:"resTypeValue"`
+		Extinfo          string `json:"extinfo"`
 	} `json:"param"`
 }
 
@@ -265,10 +265,7 @@ func fileToObj(f File) *model.Object {
 			IsFolder: true,
 		}
 	}
-	paserTime, err := time.Parse("2006-01-02 15:04", f.Content.UploadDate)
-	if err != nil {
-		paserTime = time.Now()
-	}
+	paserTime := time.UnixMilli(f.Content.UploadDate)
 	return &model.Object{
 		ID:       fmt.Sprintf("%d$%s", f.ID, f.Content.FileID),
 		Name:     f.Content.Name,
