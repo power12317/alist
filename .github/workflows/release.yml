@@ -76,6 +76,7 @@ jobs:
           persist-credentials: false
 
       - name: Free disk space for cross compilers
+        if: startsWith(matrix.target, 'darwin-') || matrix.target == 'windows-amd64'
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
         with:
           tool-cache: false
@@ -89,12 +90,18 @@ jobs:
           name: release-web-dist
           path: public/dist
 
+      - name: Download musl toolchain with retries
+        if: startsWith(matrix.target, 'linux-')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash .github/scripts/fetch-musl-toolchain.sh "$TARGET" "$RUNNER_TEMP/musl"
+
       - name: Build with CGO
         if: ${{ !startsWith(matrix.target, 'freebsd-') }}
         uses: go-cross/cgo-actions@d0b8f2f2d67923ce9a42d92a7ef0ed1ebd905f0a # v1
         with:
           targets: ${{ matrix.target }}
-          musl-base-url: https://musl.cc
+          musl-base-url: file://${{ runner.temp }}/musl
           out-dir: build
           output: alist-$target$ext
           x-flags: |

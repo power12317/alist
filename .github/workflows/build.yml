@@ -48,11 +48,17 @@ jobs:
       - name: Setup web
         run: bash build.sh dev web
 
+      - name: Download musl toolchain with retries
+        if: startsWith(matrix.target, 'linux-')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash .github/scripts/fetch-musl-toolchain.sh "$TARGET" "$RUNNER_TEMP/musl"
+
       - name: Build
         uses: go-cross/cgo-actions@d0b8f2f2d67923ce9a42d92a7ef0ed1ebd905f0a # v1
         with:
           targets: ${{ matrix.target }}
-          musl-base-url: https://musl.cc
+          musl-base-url: file://${{ runner.temp }}/musl
           musl-target-format: $os-$musl-$arch
           out-dir: build
           x-flags: |

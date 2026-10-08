@@ -36,6 +36,8 @@ also available as Actions artifacts for 14 days.
 
 Go is selected from `go.mod`. FreeBSD builds use the official archived 14.3
 sysroot, because the regular download server removes superseded releases.
+Musl toolchains are downloaded from the GitHub mirror with retries, with musl.cc
+as a fallback, then passed to the cross-compiler action from a local file.
 
 For build corrections before publishing, rerun failed jobs on the same tag if
 the source is unchanged. For source changes, create a new version such as
