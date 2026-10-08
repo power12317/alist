@@ -42,6 +42,7 @@ import (
 	_ "github.com/alist-org/alist/v3/drivers/github_releases"
 	_ "github.com/alist-org/alist/v3/drivers/gofile"
 	_ "github.com/alist-org/alist/v3/drivers/google_drive"
+	_ "github.com/alist-org/alist/v3/drivers/google_drive_share"
 	_ "github.com/alist-org/alist/v3/drivers/google_photo"
 	_ "github.com/alist-org/alist/v3/drivers/guangyapan"
 	_ "github.com/alist-org/alist/v3/drivers/halalcloud"
